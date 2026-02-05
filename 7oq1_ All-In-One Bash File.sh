@@ -1,6 +1,5 @@
 #!/bin/bash
 clear
-
 # =============================
 # Modern Color Scheme & Styling
 # =============================
