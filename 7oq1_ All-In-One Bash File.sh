@@ -77,10 +77,6 @@ generate_vm_script() {
 #!/bin/bash
 set -euo pipefail
 
-# === Full VM Manager Script ===
-#!/bin/bash
-set -euo pipefail
-
 # =============================
 # Enhanced Multi-VM Manager
 # =============================
@@ -1035,22 +1031,23 @@ EODEV
                 echo -e "${B_CYAN}========================================================${RESET}"
                 echo -e "${B_PURPLE}        ${ICON_BOX} PROXMOX VE (DOCKER VERSION)${RESET}"
                 echo -e "${B_CYAN}========================================================${RESET}"
-            
+                
+                # Using sudo to ensure permissions
                 echo -e "${B_YELLOW}${ICON_GEAR} Updating system...${RESET}"
-                apt update && apt upgrade -y
+                sudo apt update && sudo apt upgrade -y
             
                 echo -e "${B_YELLOW}${ICON_BOX} Installing Docker...${RESET}"
-                apt install -y docker.io
+                sudo apt install -y docker.io
             
                 echo -e "${B_YELLOW}${ICON_GEAR} Enabling Docker auto-start...${RESET}"
-                systemctl enable docker
-                systemctl start docker
+                sudo systemctl enable docker
+                sudo systemctl start docker
             
                 echo -e "${B_YELLOW}${ICON_BOX} Pulling Proxmox Docker image...${RESET}"
-                docker pull rtedpro/proxmox:9.0.11
+                sudo docker pull rtedpro/proxmox:9.0.11
             
                 echo -e "${B_GREEN}${ICON_ROCKET} Starting Proxmox VE container...${RESET}"
-                docker run -itd \
+                sudo docker run -itd \
                     --name proxmoxve \
                     --hostname pve \
                     -p 8006:8006 \
@@ -1069,14 +1066,20 @@ EODEV
                 echo -e "${B_BLUE}        ${ICON_RDP} Installing xRDP + XFCE + Firefox${RESET}"
                 echo -e "${B_CYAN}========================================================${RESET}"
             
-                apt update && apt upgrade -y
-                apt install -y xfce4 xfce4-goodies xrdp firefox-esr
+                sudo apt update && sudo apt upgrade -y
+                sudo apt install -y xfce4 xfce4-goodies xrdp firefox-esr
             
-                echo "startxfce4" > ~/.xsession
-                sudo chown "$USER:$USER" ~/.xsession
+                # Determine correct user home directory if running with sudo
+                REAL_USER="${SUDO_USER:-$USER}"
+                REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
+                
+                echo -e "${B_YELLOW}${ICON_INFO} Configuring Xsession for user: $REAL_USER ($REAL_HOME)${RESET}"
+                
+                echo "startxfce4" > "$REAL_HOME/.xsession"
+                chown "$REAL_USER:$REAL_USER" "$REAL_HOME/.xsession"
             
-                systemctl enable xrdp
-                systemctl start xrdp
+                sudo systemctl enable xrdp
+                sudo systemctl start xrdp
             
                 echo -e "${B_GREEN}${ICON_CHECK} xRDP + XFCE + Firefox installed!${RESET}"
                 echo -e "${B_CYAN}${ICON_RDP} Connect via RDP client to your server IP${RESET}"
@@ -1101,7 +1104,7 @@ EODEV
                 if [ $missing_deps -eq 1 ]; then
                     echo -e "${B_YELLOW}${ICON_WARN} Missing dependencies found.${RESET}"
                     echo -e "${B_BLUE}${ICON_BOX} Installing required packages...${RESET}"
-                    apt update && apt install -y qemu-kvm qemu-utils cloud-image-utils wget
+                    sudo apt update && sudo apt install -y qemu-kvm qemu-utils cloud-image-utils wget
                     echo -e "${B_GREEN}${ICON_CHECK} Dependencies installed.${RESET}"
                 else
                     echo -e "${B_GREEN}${ICON_CHECK} All requirements met.${RESET}"
@@ -1152,10 +1155,14 @@ port_menu() {
                 echo -e "${B_CYAN}========================================================${RESET}"
                 echo -e "${B_YELLOW}        ${ICON_TELE} Installing Telebit${RESET}"
                 echo -e "${B_CYAN}========================================================${RESET}"
-            
-                curl -fsSL https://get.telebit.io | bash
-                echo -e "${B_GREEN}${ICON_CHECK} Telebit installed!${RESET}"
-                echo -e "${B_CYAN}${ICON_INFO} Run it using: telebit help${RESET}"
+                
+                if command -v curl &> /dev/null; then
+                    curl -fsSL https://get.telebit.io | bash
+                    echo -e "${B_GREEN}${ICON_CHECK} Telebit installed!${RESET}"
+                    echo -e "${B_CYAN}${ICON_INFO} Run it using: telebit help${RESET}"
+                else
+                    echo -e "${B_RED}${ICON_ERROR} curl is not installed. Please install curl.${RESET}"
+                fi
             ;;
             
             2)
@@ -1184,10 +1191,13 @@ port_menu() {
                 echo -e "${B_GREEN}        ${ICON_GEAR} Installing Localtonet (Script)${RESET}"
                 echo -e "${B_CYAN}========================================================${RESET}"
                 
-                curl -sSL https://localtonet.com/install.sh | bash
-                
-                echo -e "${B_GREEN}${ICON_CHECK} Localtonet installed!${RESET}"
-                echo -e "${B_PURPLE}<3  Made by: 7oq1_.${RESET}"
+                if command -v curl &> /dev/null; then
+                    curl -sSL https://localtonet.com/install.sh | bash
+                    echo -e "${B_GREEN}${ICON_CHECK} Localtonet installed!${RESET}"
+                    echo -e "${B_PURPLE}<3  Made by: 7oq1_.${RESET}"
+                else
+                     echo -e "${B_RED}${ICON_ERROR} curl is not installed. Please install curl.${RESET}"
+                fi
             ;;
             
             4)
@@ -1215,13 +1225,17 @@ port_menu() {
                 echo -e "${B_YELLOW}${ICON_ROCKET} Downloading Localtonet Linux x64...${RESET}"
                 wget https://localtonet.com/download/localtonet-linux-x64.zip -O localtonet.zip
                 
-                echo -e "${B_YELLOW}${ICON_GEAR} Extracting files...${RESET}"
-                unzip -o localtonet.zip
-                chmod +x localtonet
-                rm localtonet.zip
+                if [ -f "localtonet.zip" ]; then
+                    echo -e "${B_YELLOW}${ICON_GEAR} Extracting files...${RESET}"
+                    unzip -o localtonet.zip
+                    chmod +x localtonet
+                    rm localtonet.zip
 
-                echo -e "${B_GREEN}${ICON_CHECK} Installation Complete!${RESET}"
-                echo -e "${B_CYAN}${ICON_INFO} usage: ./localtonet authtoken <your_token>${RESET}"
+                    echo -e "${B_GREEN}${ICON_CHECK} Installation Complete!${RESET}"
+                    echo -e "${B_CYAN}${ICON_INFO} usage: ./localtonet authtoken <your_token>${RESET}"
+                else
+                    echo -e "${B_RED}${ICON_ERROR} Download failed.${RESET}"
+                fi
                 echo -e "${B_PURPLE}<3  Made by: 7oq1_.${RESET}"
             ;;
             
@@ -1237,6 +1251,7 @@ port_menu() {
     done
 }
 
+# Main Loop
 while true; do
     draw_banner
     
